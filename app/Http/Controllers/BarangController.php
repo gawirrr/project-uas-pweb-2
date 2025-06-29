@@ -8,12 +8,8 @@ use App\Models\Kategori;
 
 class BarangController extends Controller
 {
-    /**
-     * Menampilkan daftar semua barang.
-     */
     public function index(Request $request)
     {
-        // PERBAIKAN: Mengurutkan berdasarkan 'nama_kategori'
         $kategoris = Kategori::orderBy('nama_kategori')->get();
         $query = Barang::with('kategori');
 
@@ -27,96 +23,77 @@ class BarangController extends Controller
 
         $barangs = $query->latest()->get();
 
-        return view('barang.index', [
-            'barangs' => $barangs,
-            'kategoris' => $kategoris,
-            'search' => $request->search,
-            'selectedKategori' => $request->kategori_id
-        ]);
+        return view('barang.index', compact('barangs', 'kategoris'));
     }
 
-    /**
-     * Menampilkan form untuk membuat barang baru.
-     */
     public function create()
     {
         return view('barang.create');
     }
 
-    /**
-     * Menyimpan barang baru ke database.
-     */
     public function store(Request $request)
     {
+        // DIUBAH: Validasi untuk harga_beli dan harga_jual
         $validatedData = $request->validate([
-            'nama' => 'required|string|max:255',
+            'nama' => 'required|string|max:255|unique:barangs,nama',
             'kategori' => 'required|string',
-            'harga' => 'required|numeric|min:0',
+            'harga_beli' => 'required|numeric|min:0',
+            'harga_jual' => 'required|numeric|min:0|gte:harga_beli', // Harga jual tidak boleh lebih rendah dari harga beli
             'stok' => 'required|integer|min:0',
         ]);
 
-        // PERBAIKAN: Mencari atau membuat kategori berdasarkan 'nama_kategori'
-        $kategori = Kategori::firstOrCreate(
-            ['nama_kategori' => $validatedData['kategori']]
-        );
+        $kategori = Kategori::firstOrCreate(['nama_kategori' => $validatedData['kategori']]);
 
+        // DIUBAH: Menyimpan harga_beli dan harga_jual
         Barang::create([
             'nama' => $validatedData['nama'],
             'id_kategori' => $kategori->id,
             'stok' => $validatedData['stok'],
-            'harga_beli' => $validatedData['harga'],
-            'harga_jual' => $validatedData['harga'],
+            'harga_beli' => $validatedData['harga_beli'],
+            'harga_jual' => $validatedData['harga_jual'],
         ]);
 
         return redirect()->route('barang.index')->with('success', 'Barang baru berhasil ditambahkan!');
     }
 
-    /**
-     * Menampilkan form untuk mengedit barang.
-     */
     public function edit(Barang $barang)
     {
+        // Controller 'edit' tidak perlu diubah karena view-nya sudah kita perbaiki
         return view('barang.edit', compact('barang'));
     }
 
-    /**
-     * Mengupdate data barang di database.
-     */
     public function update(Request $request, Barang $barang)
     {
+        // DIUBAH: Validasi untuk harga_beli dan harga_jual
         $validatedData = $request->validate([
-            'nama' => 'required|string|max:255',
+            'nama' => 'required|string|max:255|unique:barangs,nama,' . $barang->id,
             'kategori' => 'required|string',
-            'harga' => 'required|numeric|min:0',
+            'harga_beli' => 'required|numeric|min:0',
+            'harga_jual' => 'required|numeric|min:0|gte:harga_beli',
             'stok' => 'required|integer|min:0',
         ]);
 
-        // PERBAIKAN: Mencari atau membuat kategori berdasarkan 'nama_kategori'
-        $kategori = Kategori::firstOrCreate(
-            ['nama_kategori' => $validatedData['kategori']]
-        );
+        $kategori = Kategori::firstOrCreate(['nama_kategori' => $validatedData['kategori']]);
 
+        // DIUBAH: Mengupdate harga_beli dan harga_jual
         $barang->update([
             'nama' => $validatedData['nama'],
             'id_kategori' => $kategori->id,
             'stok' => $validatedData['stok'],
-            'harga_beli' => $validatedData['harga'],
-            'harga_jual' => $validatedData['harga'],
+            'harga_beli' => $validatedData['harga_beli'],
+            'harga_jual' => $validatedData['harga_jual'],
         ]);
 
         return redirect()->route('barang.index')->with('success', 'Data barang berhasil diperbarui!');
     }
 
-    /**
-     * Menghapus data barang dari database.
-     */
     public function destroy(Barang $barang)
     {
         try {
             $barang->delete();
             return redirect()->route('barang.index')->with('success', 'Data barang berhasil dihapus!');
         } catch (\Exception $e) {
-            return redirect()->route('barang.index')->with('error', 'Gagal menghapus barang. Mungkin sudah ada transaksi terkait.');
+            return redirect()->route('barang.index')->with('error', 'Gagal menghapus barang. Mungkin ada data terkait.');
         }
     }
 }
